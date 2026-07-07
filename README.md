@@ -1,15 +1,10 @@
-Welcome to your new dbt project!
+# BoC Economics dbt Project
 
-### Using the starter project
+End-to-end analytics pipeline: Bank of Canada Valet API to BigQuery to dbt to Looker Studio.
 
-Try running the following commands:
-- dbt run
-- dbt test
-
-
-### Resources:
-- Learn more about dbt [in the docs](https://docs.getdbt.com/docs/introduction)
-- Check out [Discourse](https://discourse.getdbt.com/) for commonly asked questions and answers
-- Join the [chat](https://community.getdbt.com/) on Slack for live discussions and support
-- Find [dbt events](https://events.getdbt.com) near you
-- Check out [the blog](https://blog.getdbt.com/) for the latest news on dbt's development and best practices
+## Stack
+- Warehouse: BigQuery (northamerica-northeast2)
+- Transformation: dbt Core (dbt-bigquery)
+- Ingestion: Python, lands raw tables in boc_raw
+- CI: GitHub Actions runs dbt build on PR
+- Viz: Looker Studio on the mart
