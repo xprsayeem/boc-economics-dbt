@@ -1,0 +1,50 @@
+version: 2
+
+models:
+  - name: stg_boc__policy_rate
+    description: >
+      Staged Bank of Canada target for the overnight rate (policy rate), one row
+      per observation date at native (daily) grain. Percent per annum.
+    columns:
+      - name: date_day
+        description: "Observation date."
+      - name: indicator_code
+        description: "Indicator key, constant 'policy_rate'. Joins to dim_indicator downstream."
+      - name: value
+        description: "Target for the overnight rate, percent per annum."
+
+  - name: stg_boc__cpi
+    description: >
+      Staged total Consumer Price Index (all-items) level, one row per month
+      at native (monthly) grain. Index, not a percentage change.
+    columns:
+      - name: date_day
+        description: "Observation date (first of the reference month)."
+      - name: indicator_code
+        description: "Indicator key, constant 'cpi'. Joins to dim_indicator downstream."
+      - name: value
+        description: "Total CPI index level."
+
+  - name: stg_boc__fx_usdcad
+    description: >
+      Staged USD/CAD daily average exchange rate, one row per observation date
+      at native (daily) grain. Canadian dollars per one US dollar.
+    columns:
+      - name: date_day
+        description: "Observation date."
+      - name: indicator_code
+        description: "Indicator key, constant 'fx_usdcad'. Joins to dim_indicator downstream."
+      - name: value
+        description: "USD/CAD exchange rate (CAD per 1 USD)."
+
+  - name: stg_boc__bond_5yr
+    description: >
+      Staged Government of Canada 5-year benchmark bond yield, one row per
+      observation date at native (daily) grain. Percent per annum.
+    columns:
+      - name: date_day
+        description: "Observation date."
+      - name: indicator_code
+        description: "Indicator key, constant 'bond_5yr'. Joins to dim_indicator downstream."
+      - name: value
+        description: "5-year GoC benchmark bond yield, percent per annum."
