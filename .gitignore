@@ -2,5 +2,6 @@
 target/
 dbt_packages/
 logs/
+dbt-venv/
 .env
 *-key.json
