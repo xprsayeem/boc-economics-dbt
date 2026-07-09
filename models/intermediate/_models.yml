@@ -1,0 +1,16 @@
+version: 2
+
+models:
+  - name: int_indicators_monthly
+    description: >
+      All four indicators unioned into a tidy long table on a common monthly
+      grain. Daily series (policy_rate, fx_usdcad, bond_5yr) are collapsed to
+      their month-end observation; CPI is already monthly. One row per
+      (date_month, indicator_code).
+    columns:
+      - name: date_month
+        description: "First day of the month the observation belongs to (monthly grain key)."
+      - name: indicator_code
+        description: "Indicator key. Joins to dim_indicator downstream."
+      - name: value
+        description: "Indicator value for that month. Units vary by indicator; see dim_indicator."

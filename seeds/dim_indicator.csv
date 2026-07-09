@@ -1,0 +1,5 @@
+indicator_code,indicator_name,unit,frequency,source
+policy_rate,Target for the overnight rate,percent per annum,daily,Bank of Canada Valet (V39079)
+cpi,Total Consumer Price Index,index (2002=100),monthly,Bank of Canada Valet (V41690973)
+fx_usdcad,USD/CAD average exchange rate,CAD per USD,daily,Bank of Canada Valet (FXUSDCAD)
+bond_5yr,Government of Canada 5-year benchmark bond yield,percent per annum,daily,Bank of Canada Valet (BD.CDN.5YR.DQ.YLD)

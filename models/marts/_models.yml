@@ -1,0 +1,15 @@
+version: 2
+
+models:
+  - name: fct_economic_indicators
+    description: >
+      Fact table feeding the dashboard: one row per (date_month, indicator_code)
+      with the indicator value on a monthly grain. Join to dim_indicator for
+      display names, units, and source.
+    columns:
+      - name: date_month
+        description: "Month of the observation (first day of the month)."
+      - name: indicator_code
+        description: "Indicator key. Foreign key to dim_indicator.indicator_code."
+      - name: value
+        description: "Indicator value for the month."

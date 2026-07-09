@@ -1,0 +1,18 @@
+version: 2
+
+seeds:
+  - name: dim_indicator
+    description: >
+      Indicator dimension: one row per indicator with its display name, unit,
+      native source frequency, and Bank of Canada Valet source series.
+    columns:
+      - name: indicator_code
+        description: "Primary key. Joins to fct_economic_indicators.indicator_code."
+      - name: indicator_name
+        description: "Human-readable indicator name."
+      - name: unit
+        description: "Unit of the value (e.g. percent per annum, index, CAD per USD)."
+      - name: frequency
+        description: "Native publication frequency of the source series."
+      - name: source
+        description: "Source system and Valet series code."

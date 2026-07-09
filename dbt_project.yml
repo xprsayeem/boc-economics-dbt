@@ -33,3 +33,17 @@ models:
   boc_economics:
     staging:
       +materialized: view
+    intermediate:
+      +materialized: view
+    marts:
+      +materialized: table
+
+seeds:
+  boc_economics:
+    dim_indicator:
+      +column_types:
+        indicator_code: string
+        indicator_name: string
+        unit: string
+        frequency: string
+        source: string
