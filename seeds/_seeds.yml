@@ -8,6 +8,9 @@ seeds:
     columns:
       - name: indicator_code
         description: "Primary key. Joins to fct_economic_indicators.indicator_code."
+        data_tests:
+          - not_null
+          - unique
       - name: indicator_name
         description: "Human-readable indicator name."
       - name: unit

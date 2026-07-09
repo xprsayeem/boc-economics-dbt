@@ -5,7 +5,8 @@ with monthly as (
 )
 
 select
-    date_month
+    to_hex(md5(concat(cast(date_month as string), '|', indicator_code))) as indicator_month_key
+    , date_month
     , indicator_code
     , value
 from monthly
