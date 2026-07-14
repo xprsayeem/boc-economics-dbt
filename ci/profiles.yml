@@ -1,0 +1,20 @@
+# CI-only dbt profile. Used by .github/workflows/ci.yml via --profiles-dir ci.
+# Local development continues to use ~/.dbt/profiles.yml and is unaffected.
+#
+# The `ci` target writes to a SEPARATE dataset (boc_analytics_ci) so CI runs
+# never touch the main boc_analytics data. Auth reads the key path from the
+# DBT_KEYFILE env var, exactly like local dev, so this is a config swap not a
+# rewrite: the workflow writes the GCP_SA_KEY secret to a file and points
+# DBT_KEYFILE at it.
+boc_economics:
+  target: ci
+  outputs:
+    ci:
+      type: bigquery
+      method: service-account
+      keyfile: "{{ env_var('DBT_KEYFILE') }}"
+      project: boc-dbt-portfolio-project
+      dataset: boc_analytics_ci
+      location: northamerica-northeast2
+      threads: 4
+      priority: interactive

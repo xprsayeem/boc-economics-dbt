@@ -1,0 +1,6 @@
+# dbt (CI and local dev); pulls dbt-core in transitively.
+dbt-bigquery==1.11.3
+
+# ingestion/ingest_boc.py
+requests==2.34.2
+google-cloud-bigquery==3.42.1
