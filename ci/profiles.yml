@@ -1,11 +1,12 @@
-# CI-only dbt profile. Used by .github/workflows/ci.yml via --profiles-dir ci.
+# CI-only dbt profile. Used by the GitHub Actions workflows via --profiles-dir ci.
 # Local development continues to use ~/.dbt/profiles.yml and is unaffected.
 #
-# The `ci` target writes to a SEPARATE dataset (boc_analytics_ci) so CI runs
-# never touch the main boc_analytics data. Auth reads the key path from the
-# DBT_KEYFILE env var, exactly like local dev, so this is a config swap not a
-# rewrite: the workflow writes the GCP_SA_KEY secret to a file and points
-# DBT_KEYFILE at it.
+# Two CI targets, one per warehouse, each writing to a SEPARATE _ci schema so CI
+# never touches the main analytics data:
+#   ci           - BigQuery, runs on every PR (.github/workflows/ci.yml)
+#   snowflake_ci - Snowflake, manual only (.github/workflows/ci-snowflake.yml)
+# Auth reads paths/params from env vars, exactly like local dev, so each workflow
+# just writes its secret to a file and points the env vars at it.
 boc_economics:
   target: ci
   outputs:
@@ -18,3 +19,14 @@ boc_economics:
       location: northamerica-northeast2
       threads: 4
       priority: interactive
+
+    snowflake_ci:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT', '') }}"
+      user: "{{ env_var('SNOWFLAKE_USER', '') }}"
+      private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PATH', '') }}"
+      role: "{{ env_var('SNOWFLAKE_ROLE', '') }}"
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE', '') }}"
+      database: "{{ env_var('SNOWFLAKE_DATABASE', '') }}"
+      schema: boc_analytics_ci
+      threads: 4

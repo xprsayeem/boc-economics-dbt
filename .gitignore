@@ -6,3 +6,8 @@ dbt-venv/
 .env
 *-key.json
 .user.yml
+claude.md
+claudeog.md
+# Snowflake key-pair (private + public); keys live outside the repo in ~/.snowflake/
+*.p8
+snowflake_rsa_key*

@@ -32,9 +32,9 @@ select
     partition_key
     , prev_month_date
     , month_date
-    , date_diff(month_date, prev_month_date, month) as month_gap
+    , {{ dbt.datediff('prev_month_date', 'month_date', 'month') }} as month_gap
 from ordered
 where prev_month_date is not null
-  and date_diff(month_date, prev_month_date, month) > 1
+  and {{ dbt.datediff('prev_month_date', 'month_date', 'month') }} > 1
 
 {% endtest %}

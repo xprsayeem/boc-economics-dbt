@@ -14,11 +14,11 @@ with unioned as (
 -- fx_usdcad, bond_5yr) collapse to their month-end observation; CPI is already
 -- monthly. The month is keyed to its first day.
 select
-    date_trunc(date_day, month) as date_month
+    {{ dbt.date_trunc('month', 'date_day') }} as date_month
     , indicator_code
     , value
 from unioned
 qualify row_number() over (
-    partition by indicator_code, date_trunc(date_day, month)
+    partition by indicator_code, {{ dbt.date_trunc('month', 'date_day') }}
     order by date_day desc
 ) = 1

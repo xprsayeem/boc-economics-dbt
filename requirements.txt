@@ -1,5 +1,6 @@
-# dbt (CI and local dev); pulls dbt-core in transitively.
+# dbt adapters (CI and local dev); each pulls dbt-core in transitively.
 dbt-bigquery==1.11.3
+dbt-snowflake==1.11.6  # also brings snowflake-connector-python, used by ingestion
 
 # ingestion/ingest_boc.py
 requests==2.34.2

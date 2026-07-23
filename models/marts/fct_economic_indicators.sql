@@ -5,7 +5,7 @@ with monthly as (
 )
 
 select
-    to_hex(md5(concat(cast(date_month as string), '|', indicator_code))) as indicator_month_key
+    {{ dbt_utils.generate_surrogate_key(['date_month', 'indicator_code']) }} as indicator_month_key
     , date_month
     , indicator_code
     , value

@@ -1,0 +1,47 @@
+name: dbt CI (Snowflake)
+
+# Manual only. Snowflake runs on a time-limited trial, so this is NOT wired to
+# pull requests — that keeps it from turning into a permanently failing check
+# once the trial lapses. Trigger it by hand from the Actions tab while the trial
+# is live. It ingests raw into Snowflake, then runs dbt build + all tests against
+# the isolated boc_analytics_ci schema.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+      SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
+      SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+      SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+      SNOWFLAKE_PRIVATE_KEY_PATH: ${{ runner.temp }}/snowflake_key.p8
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Write Snowflake private key
+        run: echo "$SNOWFLAKE_PRIVATE_KEY" > "$SNOWFLAKE_PRIVATE_KEY_PATH"
+        env:
+          SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
+
+      - name: dbt deps
+        run: dbt deps
+
+      - name: Ingest raw into Snowflake
+        run: python ingestion/ingest_boc.py --warehouse snowflake
+
+      - name: dbt build (snowflake_ci target)
+        run: dbt build --profiles-dir ci --target snowflake_ci
