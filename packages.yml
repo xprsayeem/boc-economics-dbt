@@ -1,0 +1,5 @@
+packages:
+  # Cross-database macros (generate_surrogate_key). Pinned to a version
+  # compatible with dbt-core 1.11.x.
+  - package: dbt-labs/dbt_utils
+    version: 1.4.1

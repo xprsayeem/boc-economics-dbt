@@ -2,12 +2,14 @@ version: 2
 
 sources:
   - name: boc_raw
-    database: boc-dbt-portfolio-project
+    # Warehouse-agnostic: resolves to the project (BigQuery) or database
+    # (Snowflake) of the active target, both of which contain the boc_raw schema.
+    database: "{{ target.database }}"
     schema: boc_raw
     description: >
       Raw Bank of Canada Valet API series, landed by `ingestion/ingest_boc.py`
       (truncate-and-reload, one table per series). Columns are uniform across
-      tables: obs_date (DATE), series_name (STRING, the Valet code), value (FLOAT64).
+      tables: obs_date (date), series_name (string, the Valet code), value (float).
     tables:
       - name: policy_rate
         description: "Target for the overnight rate — Valet series V39079 (daily)."

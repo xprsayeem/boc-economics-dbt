@@ -1,35 +1,41 @@
 """
-Bank of Canada Valet API -> BigQuery raw ingestion.
+Bank of Canada Valet API -> warehouse raw ingestion (BigQuery or Snowflake).
 
-Idempotent, truncate-and-reload. One raw table per series in `boc_raw`.
-This is plumbing for the pipeline, not the showpiece; it is deliberately simple
+Idempotent, truncate-and-reload. One raw table per series in the `boc_raw`
+schema. The same shape lands in both warehouses so the dbt models stay
+warehouse-agnostic. This is plumbing, not the showpiece — deliberately simple
 (no incremental logic, no orchestration).
 
-Run:
-    python ingestion/ingest_boc.py
+Run (PowerShell):
+    python ingestion\\ingest_boc.py                      # BigQuery (default)
+    python ingestion\\ingest_boc.py --warehouse snowflake
 
-Auth:
-    Reads the service-account key path from the DBT_KEYFILE env var, the same
-    variable dbt uses, so local and CI share one config. Set it first, e.g.:
-        $env:DBT_KEYFILE = "$HOME\\.gcp\\dbt-runner-key.json"
+The warehouse can also be set via the TARGET_WAREHOUSE env var; --warehouse wins.
+
+Auth (same env vars the matching dbt target reads):
+  BigQuery  - DBT_KEYFILE -> service-account key path.
+  Snowflake - SNOWFLAKE_ACCOUNT / SNOWFLAKE_USER / SNOWFLAKE_PRIVATE_KEY_PATH /
+              SNOWFLAKE_ROLE / SNOWFLAKE_WAREHOUSE / SNOWFLAKE_DATABASE
+              (key-pair auth; optional SNOWFLAKE_PRIVATE_KEY_PASSPHRASE).
 """
 
 from __future__ import annotations
 
+import argparse
 import os
 import sys
 import time
 
 import requests
-from google.cloud import bigquery
-from google.oauth2 import service_account
 
 # --- config -------------------------------------------------------------
 VALET_BASE = "https://www.bankofcanada.ca/valet"
 
-PROJECT = "boc-dbt-portfolio-project"
-RAW_DATASET = "boc_raw"
-LOCATION = "northamerica-northeast2"
+# BigQuery target
+BQ_PROJECT = "boc-dbt-portfolio-project"
+BQ_LOCATION = "northamerica-northeast2"
+
+RAW_SCHEMA = "boc_raw"  # BigQuery dataset / Snowflake schema (same name in both)
 
 # indicator_code (our name, and the raw table name) -> Valet series name.
 # All four confirmed against the live Valet API on 2026-07-07.
@@ -93,21 +99,21 @@ def fetch_observations(series_name: str) -> list[dict]:
     return rows
 
 
-def bq_client() -> bigquery.Client:
+# ---- BigQuery loader ---------------------------------------------------
+def load_bigquery(series_rows: dict[str, list[dict]]) -> None:
+    """Truncate-and-reload each raw table in BigQuery with an explicit schema."""
+    from google.cloud import bigquery
+    from google.oauth2 import service_account
+
     key_path = os.environ.get("DBT_KEYFILE")
     if not key_path or not os.path.exists(key_path):
         sys.exit(
             "DBT_KEYFILE is not set or does not point to a file.\n"
-            "Set it to the service-account key path, e.g.\n"
-            '  $env:DBT_KEYFILE = "$HOME\\.gcp\\dbt-runner-key.json"'
+            'Set it, e.g.  $env:DBT_KEYFILE = "$HOME\\.gcp\\dbt-runner-key.json"'
         )
     creds = service_account.Credentials.from_service_account_file(key_path)
-    return bigquery.Client(project=PROJECT, credentials=creds, location=LOCATION)
+    client = bigquery.Client(project=BQ_PROJECT, credentials=creds, location=BQ_LOCATION)
 
-
-def load_table(client: bigquery.Client, table_name: str, rows: list[dict]) -> None:
-    """Truncate-and-reload one raw table with an explicit schema."""
-    table_id = f"{PROJECT}.{RAW_DATASET}.{table_name}"
     job_config = bigquery.LoadJobConfig(
         schema=[
             bigquery.SchemaField("obs_date", "DATE", mode="REQUIRED"),
@@ -116,22 +122,99 @@ def load_table(client: bigquery.Client, table_name: str, rows: list[dict]) -> No
         ],
         write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
     )
-    job = client.load_table_from_json(rows, table_id, job_config=job_config)
-    job.result()  # block until the load completes
-    print(f"  loaded {len(rows):>6} rows -> {table_id}")
+    for table_name, rows in series_rows.items():
+        table_id = f"{BQ_PROJECT}.{RAW_SCHEMA}.{table_name}"
+        client.load_table_from_json(rows, table_id, job_config=job_config).result()
+        print(f"  loaded {len(rows):>6} rows -> {table_id}")
+
+
+# ---- Snowflake loader --------------------------------------------------
+def load_snowflake(series_rows: dict[str, list[dict]]) -> None:
+    """Truncate-and-reload each raw table in Snowflake (key-pair auth).
+
+    Identifiers are written UNQUOTED so Snowflake folds them to upper case,
+    matching dbt's unquoted (upper-folded) source and column references. This is
+    the key casing detail: BigQuery preserves lowercase, Snowflake upper-cases,
+    and keeping everything unquoted lets raw and staging line up on both.
+    """
+    import snowflake.connector
+    from cryptography.hazmat.primitives import serialization
+
+    required = [
+        "SNOWFLAKE_ACCOUNT", "SNOWFLAKE_USER", "SNOWFLAKE_PRIVATE_KEY_PATH",
+        "SNOWFLAKE_ROLE", "SNOWFLAKE_WAREHOUSE", "SNOWFLAKE_DATABASE",
+    ]
+    missing = [v for v in required if not os.environ.get(v)]
+    if missing:
+        sys.exit("Missing Snowflake env vars: " + ", ".join(missing))
+
+    key_path = os.environ["SNOWFLAKE_PRIVATE_KEY_PATH"]
+    if not os.path.exists(key_path):
+        sys.exit(f"SNOWFLAKE_PRIVATE_KEY_PATH does not point to a file: {key_path}")
+    passphrase = os.environ.get("SNOWFLAKE_PRIVATE_KEY_PASSPHRASE") or None
+    with open(key_path, "rb") as fh:
+        private_key = serialization.load_pem_private_key(
+            fh.read(), password=passphrase.encode() if passphrase else None
+        )
+    pkb = private_key.private_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+
+    database = os.environ["SNOWFLAKE_DATABASE"]
+    conn = snowflake.connector.connect(
+        account=os.environ["SNOWFLAKE_ACCOUNT"],
+        user=os.environ["SNOWFLAKE_USER"],
+        private_key=pkb,
+        role=os.environ["SNOWFLAKE_ROLE"],
+        warehouse=os.environ["SNOWFLAKE_WAREHOUSE"],
+        database=database,
+    )
+    try:
+        cur = conn.cursor()
+        cur.execute(f"create schema if not exists {RAW_SCHEMA}")
+        for table_name, rows in series_rows.items():
+            fq = f"{database}.{RAW_SCHEMA}.{table_name}"
+            cur.execute(
+                f"create or replace table {fq} "
+                "(obs_date date, series_name string, value float)"
+            )
+            cur.executemany(
+                f"insert into {fq} (obs_date, series_name, value) values (%s, %s, %s)",
+                [(r["obs_date"], r["series_name"], r["value"]) for r in rows],
+            )
+            print(f"  loaded {len(rows):>6} rows -> {fq.upper()}")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+LOADERS = {"bigquery": load_bigquery, "snowflake": load_snowflake}
 
 
 def main() -> None:
-    client = bq_client()
-    print(f"Ingesting {len(SERIES)} series into {PROJECT}.{RAW_DATASET} "
-          f"(from {START_DATE})\n")
+    parser = argparse.ArgumentParser(description="Ingest BoC series into a warehouse.")
+    parser.add_argument(
+        "--warehouse",
+        choices=sorted(LOADERS),
+        default=os.environ.get("TARGET_WAREHOUSE", "bigquery"),
+        help="Target warehouse (default: TARGET_WAREHOUSE env var, else bigquery).",
+    )
+    args = parser.parse_args()
+
+    print(f"Fetching {len(SERIES)} series from the Valet API (from {START_DATE})\n")
+    series_rows: dict[str, list[dict]] = {}
     for table_name, series_name in SERIES.items():
         print(f"- {table_name} ({series_name})")
         rows = fetch_observations(series_name)
         if not rows:
             print(f"  WARNING: no observations returned for {series_name}; skipping")
             continue
-        load_table(client, table_name, rows)
+        series_rows[table_name] = rows
+
+    print(f"\nLoading into {args.warehouse} ({RAW_SCHEMA})\n")
+    LOADERS[args.warehouse](series_rows)
     print("\nDone.")
 
 

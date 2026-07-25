@@ -3,10 +3,10 @@
 [![dbt CI](https://github.com/xprsayeem/boc-economics-dbt/actions/workflows/ci.yml/badge.svg)](https://github.com/xprsayeem/boc-economics-dbt/actions/workflows/ci.yml)
 
 An end-to-end analytics-engineering pipeline over Canadian macroeconomic data:
-**Bank of Canada Valet API → BigQuery → dbt → Looker Studio.** Ingestion in
-Python, transformation in dbt (staging → intermediate → mart star schema),
-data-quality tests including a custom one, and GitHub Actions CI that rebuilds
-and tests the whole project on every pull request.
+**Bank of Canada Valet API → BigQuery *or* Snowflake → dbt → Looker Studio.**
+Ingestion in Python, transformation in one **warehouse-agnostic** dbt project
+(staging → intermediate → mart star schema), data-quality tests including a
+custom one, and GitHub Actions CI that rebuilds and tests on every pull request.
 
 **➡️ [Live Looker Studio dashboard](https://datastudio.google.com/s/uwB1ME5aTW8)**
 
@@ -65,8 +65,8 @@ seeds/               dim_indicator.csv                       (the dimension)
 ```
 
 `fct_economic_indicators` carries a surrogate key `indicator_month_key`
-(hash of `date_month` + `indicator_code`) that enforces the grain. Every model,
-source, and seed is documented in a schema YAML.
+(`dbt_utils.generate_surrogate_key` over `date_month` + `indicator_code`) that
+enforces the grain. Every model, source, and seed is documented in a schema YAML.
 
 ## Testing
 
@@ -88,6 +88,51 @@ pinned dependencies, writes the `GCP_SA_KEY` secret to a key file, points
 `DBT_KEYFILE` at it, and runs `dbt build` against a **separate `boc_analytics_ci`
 dataset** so CI never touches the main `boc_analytics` data. Auth is the same
 `DBT_KEYFILE` env var used locally, so CI is a config swap rather than a rewrite.
+
+## Warehouse portability — BigQuery + Snowflake
+
+The same dbt project runs on **both BigQuery and Snowflake**, selected by target:
+
+| Target | Warehouse | Schema / dataset | Used by |
+|---|---|---|---|
+| `dev` | BigQuery | `boc_analytics` | local (primary) |
+| `ci` | BigQuery | `boc_analytics_ci` | PR CI |
+| `snowflake` | Snowflake | `BOC_ANALYTICS` | local |
+| `snowflake_ci` | Snowflake | `BOC_ANALYTICS_CI` | manual CI |
+
+BigQuery stays primary — it feeds the dashboard and the PR CI. Portability comes
+from **dbt cross-database macros** rather than warehouse-specific SQL:
+`dbt.date_trunc`, `dbt.datediff`, `dbt.type_float`, and
+`dbt_utils.generate_surrogate_key`, plus a target-aware source database
+(`{{ target.database }}`). `QUALIFY` needed no change — Snowflake supports it
+natively. All 8 tests, including the custom `no_missing_months`, pass on both.
+
+Snowflake auth is **key-pair** via env vars (mirroring `DBT_KEYFILE`). Full setup
+— objects, keys, env vars — is in [`snowflake/README.md`](snowflake/README.md):
+
+```powershell
+python ingestion\ingest_boc.py --warehouse snowflake
+dbt build --target snowflake
+```
+
+Snowflake CI is **manual** (`.github/workflows/ci-snowflake.yml`, `workflow_dispatch`)
+so it never becomes a failing check after the time-limited trial lapses.
+
+### Evidence (Snowflake trial)
+
+Captured while the trial was live, so the proof outlives it.
+
+**Green `dbt build --target snowflake`:**
+
+![dbt build on Snowflake — completed successfully](docs/evidence/snowflake_build.png)
+
+**Models in the Snowflake UI (`BOC_DB.BOC_ANALYTICS`):**
+
+![The dbt models materialized in Snowflake](docs/evidence/snowflake_models.png)
+
+**Tests (8 passing on Snowflake):**
+
+![All eight dbt tests passing on Snowflake](docs/evidence/snowflake_test.png)
 
 ## Run it locally
 
@@ -117,10 +162,10 @@ dbt build          # runs seed, models, and tests in dependency order
 
 | Layer | Tool |
 |---|---|
-| Warehouse | BigQuery (`northamerica-northeast2`) |
-| Transformation | dbt Core 1.11 + dbt-bigquery |
-| Ingestion | Python (`requests`) → `boc_raw` |
-| CI/CD | GitHub Actions (`dbt build` on PR) |
+| Warehouse | BigQuery (`northamerica-northeast2`, primary) + Snowflake (second target) |
+| Transformation | dbt Core 1.11 + dbt-bigquery / dbt-snowflake, cross-database macros |
+| Ingestion | Python (`requests`) → `boc_raw` (either warehouse via `--warehouse`) |
+| CI/CD | GitHub Actions — `dbt build` on PR (BigQuery); manual Snowflake job |
 | Visualization | Looker Studio on `fct_economic_indicators` |
 
 ## Design decisions

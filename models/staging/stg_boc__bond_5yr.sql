@@ -7,5 +7,5 @@ with source as (
 select
     cast(obs_date as date) as date_day
     , 'bond_5yr' as indicator_code
-    , cast(value as float64) as value
+    , cast(value as {{ dbt.type_float() }}) as value
 from source
