@@ -134,6 +134,23 @@ Captured while the trial was live, so the proof outlives it.
 
 ![All eight dbt tests passing on Snowflake](docs/evidence/snowflake_test.png)
 
+## Orchestration — Airflow (local)
+
+A local **Apache Airflow** stack (Docker Compose, LocalExecutor) runs the pipeline
+on a schedule: one DAG, **`ingest_raw >> dbt_build`**, `@daily`, `catchup=False`,
+`retries=2`, targeting BigQuery `ci`. dbt runs from an isolated venv baked into the
+image so its dependencies never collide with Airflow's. Auth is the same
+`DBT_KEYFILE`, mounted read-only — nothing secret is committed. Full setup in
+[`airflow/README.md`](airflow/README.md):
+
+```powershell
+cd airflow
+Copy-Item .env.example .env      # set GCP_KEYFILE_HOST
+docker compose up -d --build     # UI at http://localhost:8080
+```
+
+![A successful boc_pipeline run in Airflow](docs/evidence/airflow_run.png)
+
 ## Run it locally
 
 Prerequisites: a GCP project with BigQuery, a service-account key with
@@ -165,6 +182,7 @@ dbt build          # runs seed, models, and tests in dependency order
 | Warehouse | BigQuery (`northamerica-northeast2`, primary) + Snowflake (second target) |
 | Transformation | dbt Core 1.11 + dbt-bigquery / dbt-snowflake, cross-database macros |
 | Ingestion | Python (`requests`) → `boc_raw` (either warehouse via `--warehouse`) |
+| Orchestration | Apache Airflow (local, Docker Compose, LocalExecutor) |
 | CI/CD | GitHub Actions — `dbt build` on PR (BigQuery); manual Snowflake job |
 | Visualization | Looker Studio on `fct_economic_indicators` |
 

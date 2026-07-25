@@ -1,0 +1,7 @@
+# The Airflow image build context is the repo root, but the image only needs
+# requirements.txt. Keep the context small by excluding the heavy/irrelevant.
+dbt-venv/
+.git/
+target/
+dbt_packages/
+logs/
