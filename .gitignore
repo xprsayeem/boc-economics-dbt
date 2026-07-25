@@ -11,3 +11,7 @@ claudeog.md
 # Snowflake key-pair (private + public); keys live outside the repo in ~/.snowflake/
 *.p8
 snowflake_rsa_key*
+
+# Python bytecode (e.g. Airflow compiling DAGs)
+__pycache__/
+*.pyc

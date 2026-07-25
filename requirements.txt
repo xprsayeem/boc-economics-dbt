@@ -1,4 +1,6 @@
-# dbt adapters (CI and local dev); each pulls dbt-core in transitively.
+# dbt: pin core so CI matches local exactly (the adapters alone would let a
+# newer dbt-core resolve in CI, drifting from the verified 1.11.12 setup).
+dbt-core==1.11.12
 dbt-bigquery==1.11.3
 dbt-snowflake==1.11.6  # also brings snowflake-connector-python, used by ingestion
 
